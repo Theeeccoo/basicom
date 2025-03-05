@@ -14,8 +14,17 @@
         exit(EXIT_FAILURE); \
     } while (0)
 
-
 #define BUFFER_SIZE 1024
+
+void trim(char *buffer)
+{
+    while (*buffer && isspace(*buffer)) buffer++;
+
+    char *end = buffer + strlen(buffer) - 1;
+    while (end > buffer && isspace(*end)) end--;
+
+    *(end + 1) = '\0';
+}
 
 struct Client
 {
@@ -51,8 +60,9 @@ int main(void)
 {
     int sockfd = init_server_socket();
 
-
-    while(true)
+    bool shutdown = false;
+    char buffer[BUFFER_SIZE];
+    while(!shutdown)
     {
         int clientfd;
         if ( (clientfd = accept(sockfd, (struct sockaddr *) &address, &address_len )) != -1 )
@@ -66,27 +76,51 @@ int main(void)
 
         for ( size_t i = 0; i < clients.size(); i++ )
         {
-            char buffer[BUFFER_SIZE];
+            memset(&buffer, 0, BUFFER_SIZE);
             ssize_t amount_read = read(clients[i].fd, buffer, BUFFER_SIZE);
 
             if ( amount_read > 0 )
             {
-                // Retrieving the exact chunk of read data
-                int length = amount_read + 1
-                char chunk[length];
-                strncpy(chunk, buffer, amount_read);
-                chunk[amount_read]= '\0';
+                buffer[amount_read] = '\0';
+                // trim(buffer);
+                while ( ( amount_read > 0 ) && ( buffer[amount_read - 1] == '\n' || buffer[amount_read - 1] == '\r' ) )
+                {
+                    buffer[--amount_read] = '\0';
+                }
 
-                std::cout << "[" << i << "] SAID: " << chunk << std::endl;
-                ssize_t amount_written = 0;
-                while ( amount_written != length )
-                    amount_written += write(clients[i].fd, chunk, length);
+                std::string check (buffer);
+                if (check == "quit")
+                {
+                    std::cout << "[" << i << "] is leaving..." << std::endl;
+                    close(clients[i].fd);
+                    clients.erase(clients.begin() + i);
+                    // Removing a Client implies in shifting Clients in "std::vector<Client>",
+                    // by decrementing i "(i--)", we ensure that the newly shifted Client at "i" gets checked.
+                    // Which wouldn't happen since for loop increments i "(i++)"
+                    i--;
+                }
+                else if ( check == "shutdown" )
+                {
+                    std::cout << "[" << i << "] closed the server..." << std::endl;
+                    for ( size_t j = 0; j < clients.size(); j++ ) close(clients[j].fd);
+                    shutdown = true;
+                    close(sockfd);
+                } else
+                {
+                    std::cout << "[" << i << "] SAID: " << buffer << " (BYTES: " << amount_read << ")" << std::endl;
+                    ssize_t amount_written = 0;
+                    // TODO: Change buffer to make it more "readable" at "write" operation
+                    while ( amount_written != amount_read ) amount_written += write(clients[i].fd, buffer, (amount_read - amount_written));
+                }
+
+
+
             }
         }
 
     }
 
-    // close(clientfd);
-    close(sockfd);
+
+
     return 0;
 }
