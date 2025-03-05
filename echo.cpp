@@ -16,16 +16,6 @@
 
 #define BUFFER_SIZE 1024
 
-void trim(char *buffer)
-{
-    while (*buffer && isspace(*buffer)) buffer++;
-
-    char *end = buffer + strlen(buffer) - 1;
-    while (end > buffer && isspace(*end)) end--;
-
-    *(end + 1) = '\0';
-}
-
 struct Client
 {
     int fd;
@@ -82,13 +72,9 @@ int main(void)
             if ( amount_read > 0 )
             {
                 buffer[amount_read] = '\0';
-                // trim(buffer);
-                while ( ( amount_read > 0 ) && ( buffer[amount_read - 1] == '\n' || buffer[amount_read - 1] == '\r' ) )
-                {
-                    buffer[--amount_read] = '\0';
-                }
 
-                std::string check (buffer);
+                // Creating a string_view to analyse the content without the \n present in the end of string
+                std::string_view check(buffer, amount_read - 2);
                 if (check == "quit")
                 {
                     std::cout << "[" << i << "] is leaving..." << std::endl;
@@ -109,7 +95,6 @@ int main(void)
                 {
                     std::cout << "[" << i << "] SAID: " << buffer << " (BYTES: " << amount_read << ")" << std::endl;
                     ssize_t amount_written = 0;
-                    // TODO: Change buffer to make it more "readable" at "write" operation
                     while ( amount_written != amount_read ) amount_written += write(clients[i].fd, buffer, (amount_read - amount_written));
                 }
 
